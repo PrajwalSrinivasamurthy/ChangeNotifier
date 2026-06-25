@@ -1,0 +1,16 @@
+.claude/
+.DS_Store
+
+# docs not needed in the repo
+README.md
+frontend/README.md
+frontend/AGENTS.md
+frontend/CLAUDE.md
+
+# create-next-app boilerplate assets, unused
+frontend/public/file.svg
+frontend/public/globe.svg
+frontend/public/next.svg
+frontend/public/vercel.svg
+frontend/public/window.svg
+frontend/app/favicon.ico
