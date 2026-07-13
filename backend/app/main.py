@@ -74,6 +74,11 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.get("/api/websites", response_model=list[WebsiteOut])
 def list_websites(db: Session = Depends(get_db)):
     return db.query(Website).order_by(Website.created_at).all()
