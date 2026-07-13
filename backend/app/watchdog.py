@@ -1,17 +1,17 @@
 """Standalone process that polls the backend's /health endpoint and texts
 when it stops responding. Runs as its own container/process so it can still
 alert after the backend itself has crashed.
+
+Downtime alerts always go to TWILIO_TO_NUMBER (the developer), independent
+of the dashboard-configured recipient used for content-change alerts.
 """
 import os
 import time
 import logging
-from typing import Optional
 
 import requests
 from dotenv import load_dotenv
 
-from .database import SessionLocal
-from .models import Settings
 from .sms import send_sms
 
 load_dotenv()
@@ -22,20 +22,7 @@ HEALTH_URL = os.getenv("WATCHDOG_URL", "http://localhost:8000/health")
 CHECK_INTERVAL_SECONDS = int(os.getenv("WATCHDOG_INTERVAL_SECONDS", "30"))
 REQUEST_TIMEOUT_SECONDS = int(os.getenv("WATCHDOG_TIMEOUT_SECONDS", "10"))
 FAILURE_THRESHOLD = int(os.getenv("WATCHDOG_FAILURE_THRESHOLD", "3"))
-
-
-def get_recipient_number() -> Optional[str]:
-    try:
-        db = SessionLocal()
-        try:
-            settings = db.query(Settings).first()
-            if settings and settings.recipient_phone_number:
-                return settings.recipient_phone_number
-        finally:
-            db.close()
-    except Exception:
-        logger.exception("Could not read recipient number from database")
-    return os.getenv("TWILIO_TO_NUMBER")
+ALERT_NUMBER = os.getenv("TWILIO_TO_NUMBER")
 
 
 def is_backend_up() -> bool:
@@ -55,7 +42,7 @@ def run() -> None:
         if is_backend_up():
             if is_down:
                 logger.info("Backend recovered")
-                send_sms(get_recipient_number(), "Webpage Change Notifier backend is back UP.")
+                send_sms(ALERT_NUMBER, "Webpage Change Notifier backend is back UP.")
                 is_down = False
             consecutive_failures = 0
         else:
@@ -64,7 +51,7 @@ def run() -> None:
             if consecutive_failures >= FAILURE_THRESHOLD and not is_down:
                 logger.error("Backend appears DOWN, sending alert")
                 send_sms(
-                    get_recipient_number(),
+                    ALERT_NUMBER,
                     f"Webpage Change Notifier backend is DOWN (unreachable at {HEALTH_URL}).",
                 )
                 is_down = True
