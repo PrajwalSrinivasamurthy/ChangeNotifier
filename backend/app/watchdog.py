@@ -2,8 +2,9 @@
 when it stops responding. Runs as its own container/process so it can still
 alert after the backend itself has crashed.
 
-Downtime alerts always go to TWILIO_TO_NUMBER (the developer), independent
-of the dashboard-configured recipient used for content-change alerts.
+Downtime alerts always go to TWILIO_TO_NUMBER (comma-separated for multiple
+recipients), independent of the dashboard-configured recipient used for
+content-change alerts.
 """
 import os
 import time
@@ -22,7 +23,7 @@ HEALTH_URL = os.getenv("WATCHDOG_URL", "http://localhost:8000/health")
 CHECK_INTERVAL_SECONDS = int(os.getenv("WATCHDOG_INTERVAL_SECONDS", "30"))
 REQUEST_TIMEOUT_SECONDS = int(os.getenv("WATCHDOG_TIMEOUT_SECONDS", "10"))
 FAILURE_THRESHOLD = int(os.getenv("WATCHDOG_FAILURE_THRESHOLD", "3"))
-ALERT_NUMBER = os.getenv("TWILIO_TO_NUMBER")
+ALERT_NUMBERS = [n.strip() for n in os.getenv("TWILIO_TO_NUMBER", "").split(",") if n.strip()]
 
 
 def is_backend_up() -> bool:
@@ -31,6 +32,11 @@ def is_backend_up() -> bool:
         return resp.ok
     except requests.RequestException:
         return False
+
+
+def alert_all(body: str) -> None:
+    for number in ALERT_NUMBERS:
+        send_sms(number, body)
 
 
 def run() -> None:
@@ -42,7 +48,7 @@ def run() -> None:
         if is_backend_up():
             if is_down:
                 logger.info("Backend recovered")
-                send_sms(ALERT_NUMBER, "Webpage Change Notifier backend is back UP.")
+                alert_all("Webpage Change Notifier backend is back UP.")
                 is_down = False
             consecutive_failures = 0
         else:
@@ -50,10 +56,7 @@ def run() -> None:
             logger.warning("Health check failed (%d/%d)", consecutive_failures, FAILURE_THRESHOLD)
             if consecutive_failures >= FAILURE_THRESHOLD and not is_down:
                 logger.error("Backend appears DOWN, sending alert")
-                send_sms(
-                    ALERT_NUMBER,
-                    f"Webpage Change Notifier backend is DOWN (unreachable at {HEALTH_URL}).",
-                )
+                alert_all(f"Webpage Change Notifier backend is DOWN (unreachable at {HEALTH_URL}).")
                 is_down = True
 
         time.sleep(CHECK_INTERVAL_SECONDS)
